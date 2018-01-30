@@ -272,7 +272,8 @@
 ;; google-this
 (use-package google-this
   :config
-  (google-this-mode 1))
+  (google-this-mode 1)
+  :diminish google-this-mode)
 
 (use-package helm
   :init (setq helm-command-prefix-key "C-c h")
