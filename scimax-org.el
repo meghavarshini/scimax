@@ -1483,6 +1483,13 @@ It is for commands that depend on the major mode. One example is
     (cursor-sensor-mode -1))
   (font-lock-fontify-buffer))
 
+;; Adding R to scimax-src-blocks (ref: https://github.com/jkitchin/scimax/issues/99)
+(add-to-list 'scimax-src-block-keymaps
+	     `("R"  . ,(let ((map (make-composed-keymap `(, ess-mode-map org-mode-map))))
+			 (define-key map (kbd "C-c C-c") 'org-ctrl-c-ctrl-c)
+			 (define-key map (kbd "C-c '") 'org-edit-special)
+			 map)))
+
 ;; (add-hook 'org-mode-hook (lambda ()
 ;; 			   (scimax-src-keymap-mode +1)))
 
