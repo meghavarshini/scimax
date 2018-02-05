@@ -272,30 +272,30 @@
 		 "[^[:alpha:]]"
 		 "[']"
 		 t
-		 ("-d" "en_US" "-p" ,(expand-file-name
-				      "emacs-win/share/hunspell/en_US"
+		 ("-d" "en_GB" "-p" ,(expand-file-name
+				      "emacs-win/share/hunspell/en_GB"
 				      scimax-dir))
 		 nil
 		 utf-8))))
     (setenv "DICPATH" (expand-file-name "~/Library/Spelling"))
     (setq ispell-program-name (executable-find "hunspell")
-	  ispell-dictionary "en_US"
-	  ispell-local-dictionary "en_US"
+	  ispell-dictionary "en_GB"
+	  ispell-local-dictionary "en_GB"
 	  ispell-local-dictionary-alist
 	  `(("english"
 	     "[[:alpha:]]"
 	     "[^[:alpha:]]"
 	     "[']"
 	     t
-	     ("-d" "en_US" "-p" ,(expand-file-name "~/Library/Spelling/"))
+	     ("-d" "en_GB" "-p" ,(expand-file-name "~/Library/Spelling/"))
 	     nil
 	     utf-8)
-	    ("en_US"
+	    ("en_GB"
 	     "[[:alpha:]]"
 	     "[^[:alpha:]]"
 	     "[']"
 	     t
-	     ("-d" "en_US" "-p" ,(expand-file-name "~/Library/Spelling/"))
+	     ("-d" "en_GB" "-p" ,(expand-file-name "~/Library/Spelling/"))
 	     nil
 	     utf-8))
 	  flyspell-correct-interface 'flyspell-correct-ivy))
@@ -314,13 +314,13 @@
 
   (add-hook 'org-mode-hook
 	    (lambda ()
-	      (flyspell-mode +1)
 	      (flycheck-mode +1)))
 
   :after flyspell
   :config
   (progn
-    (define-key flyspell-mode-map (kbd "C-;") 'flyspell-correct-previous-word-generic)))
+    (define-key flyspell-mode-map (kbd "C-;")
+      'flyspell-correct-previous-word-generic)))
 
 
 (use-package flx)

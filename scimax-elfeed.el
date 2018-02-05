@@ -7,14 +7,6 @@
 (require 'elfeed)
 
 ;;; Code:
-(loop for feed in '(("http://planetpython.org/rss20.xml" python)
-		    ("http://planet.scipy.org/rss20.xml" python)
-		    ("http://planet.emacsen.org/atom.xml" emacs)
-		    ;; Stackoverflow questions on emacs
-		    ("http://emacs.stackexchange.com/feeds" emacs))
-      do
-      (add-to-list 'elfeed-feeds feed t))
-
 
 (defface python-elfeed-entry
   '((t :background "Darkseagreen1"))
