@@ -172,9 +172,9 @@
   :config
   (elpy-enable)
   (setenv "WORKON_HOME" "/usr/local/miniconda3/envs/")
-  (setq elpy-rpc-python-command "python")
-  (setq python-shell-interpreter "jupyter"
-	python-shell-interpreter-args "console --simple-prompt")
+  ;; (setq elpy-rpc-python-command "python")
+  ;; (setq python-shell-interpreter "jupyter"
+  ;; 	python-shell-interpreter-args "console --simple-prompt")
   (electric-indent-mode +1) 
   (pyvenv-mode 1))
 

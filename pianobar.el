@@ -55,6 +55,7 @@
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Code:
+;;;; Variables
 
 (require 'comint)
 
@@ -65,6 +66,9 @@
 (defvar pianobar-command
   "pianobar"
   "The command to run pianobar.")
+
+(defvar pianobar-config nil
+  "If not nil, pianobar will load the Pandora username and password from config without prompting.")
 
 (defvar pianobar-username nil
   "The Pandora username to use, or nil to prompt.")
@@ -120,9 +124,6 @@ or nil to let you select.")
 (defvar pianobar-current-artist nil
   "The current pianobar artist, or nil.")
 
-(defvar pianobar-current-output nil
-  "The current output from pianobar.")
-
 (defvar pianobar-info-extract-rules
   '(("|> +Station \"\\(.+\\)\" +([0-9]*)$" (1 . pianobar-current-station))
     ("|> +\"\\(.*\\)\" by \"\\(.*\\)\" on \"\\(.*\\)\""
@@ -148,9 +149,16 @@ Set this with (pianobar-set-is-prompting ...).")
 (defvar pianobar-status nil
   "String (or mode-line construct) used in global pianobar mode line.")
 
-(defvar pianobar-global-modeline t
-  "Set to t to make pianobar status modeline global, or nil otherwise.
-Right now, this setting does not really work. At all.")
+(defvar pianobar-enable-modeline t
+  "Set to nil to hide updates in the modeline.")
+
+(defalias 'pianobar-global-modeline 'pianobar-enable-modeline
+  "`pianobar-global-modeline' never worked properly, so it was removed
+in favor of pianobar-enable-modeline.")
+
+(make-obsolete 'pianobar-global-modeline 'pianobar-enable-modeline "2017-11-17")
+
+;;;; Helper Functions
 
 (defun pianobar-set-is-prompting (prompting)
   "Set whether pianobar is currently prompting for a string, or not."
@@ -160,7 +168,7 @@ Right now, this setting does not really work. At all.")
 
 (defun pianobar-update-modeline ()
   "Update the pianobar modeline with current information."
-  (if (or pianobar-global-modeline (equal (buffer-name) pianobar-buffer))
+  (if pianobar-enable-modeline
       (setq pianobar-status `("  " ,(pianobar-make-modeline) "  "))
     (setq pianobar-status nil))
   (force-mode-line-update))
@@ -179,14 +187,13 @@ Right now, this setting does not really work. At all.")
   (replace-regexp-in-string "\033\\[2K" "" str))
 
 (defun pianobar-output-filter (str)
-  "Output filter for pianobar-mode." 
-  (setq pianobar-current-output str)
+  "Output filter for pianobar-mode."
   (pianobar-set-is-prompting (string-match pianobar-prompt-regex str))
 
   (dolist (rule pianobar-info-extract-rules)
     (if (string-match (car rule) str)
-	(dolist (symbol-map (cdr rule))
-	  (set (cdr symbol-map) (match-string (car symbol-map) str)))))
+        (dolist (symbol-map (cdr rule))
+          (set (cdr symbol-map) (match-string (car symbol-map) str)))))
 
   (pianobar-update-modeline))
 
@@ -196,10 +203,10 @@ Returns t on success, nil on error."
   (if (not (comint-check-proc pianobar-buffer))
       (progn (message "Pianobar is not running.") nil)
     (if pianobar-is-prompting
-	(progn (message "Pianobar is expecting input -- command not sent.") nil)
+        (progn (message "Pianobar is expecting input -- command not sent.") nil)
       (comint-send-string pianobar-buffer (char-to-string char))
       (if set-active
-	  (set-window-buffer (selected-window) pianobar-buffer))
+          (set-window-buffer (selected-window) pianobar-buffer))
       t)))
 
 (defun pianobar-self-insert-command (N)
@@ -208,6 +215,8 @@ Returns t on success, nil on error."
   (if pianobar-is-prompting
       (self-insert-command N)
     (pianobar-send-command last-input-event)))
+
+;;;; Interactive Functions
 
 (defun pianobar-love-current-song ()
   "Tell pianobar you love the current song."
@@ -218,8 +227,27 @@ Returns t on success, nil on error."
 (defun pianobar-ban-current-song ()
   "Tell pianobar to ban the current song."
   (interactive)
-  (if (and pianobar-current-song (pianobar-send-command ?-))
+  (if (and pianobar-current-song
+           (pianobar-send-command ?-))
       (message (concat "Pianobar: Banned " pianobar-current-song))))
+
+(defun pianobar-shelve-current-song ()
+  "Tell pianobar to shelve  the current song for a month (tired)."
+  (interactive)
+  (if (and pianobar-current-song (pianobar-send-command ?t))
+	  (message (concat "Pianobar: Shelved " pianobar-current-song))))
+
+(defun pianobar-volume-up ()
+  "Tell pianobar increase the volume."
+  (interactive)
+  ;; volume up is )
+  (pianobar-send-command ?\) ))
+
+(defun pianobar-volume-down ()
+  "Tell pianobar to lower the volume."
+  (interactive)
+  ;; volume up is )
+  (pianobar-send-command ?\( ))
 
 (defun pianobar-next-song ()
   "Tell pianobar to skip to the next song."
@@ -249,6 +277,8 @@ Returns t on success, nil on error."
   (add-hook 'comint-output-filter-functions 'pianobar-output-filter nil t)
   (add-hook 'comint-preoutput-filter-functions 'pianobar-preoutput-filter nil t))
 
+;;;; Main Definition
+
 ;;;###autoload
 (defun pianobar ()
   (interactive)
@@ -257,92 +287,24 @@ Returns t on success, nil on error."
   (if (comint-check-proc pianobar-buffer)
       (set-window-buffer (selected-window) pianobar-buffer)
 
-    (let ((username pianobar-username)
-	  (password pianobar-password))
+    (let ((buffer (get-buffer-create pianobar-buffer)))
+      (with-current-buffer buffer
+        (make-comint-in-buffer "pianobar" buffer pianobar-command)
+        (unless pianobar-config
+          (comint-send-string buffer (concat (or pianobar-username (read-from-minibuffer "Pandora username: ")) "\n"))
+          (comint-send-string buffer (concat (or pianobar-password (read-passwd "Pandora password: ")) "\n")))
+        (if (stringp pianobar-station)
+            (comint-send-string buffer (concat pianobar-station "\n")))
+        (buffer-disable-undo)
+        (pianobar-mode))
 
-      (unless username
-	(setq username (read-from-minibuffer "Pandora username: ")))
-      (unless password
-	(setq password (read-passwd "Pandora password: ")))
+      (cond ((boundp 'mode-line-modes)
+             (add-to-list 'mode-line-modes pianobar-modeline-object t))
+            ((boundp 'global-mode-string)
+             (add-to-list 'global-mode-string pianobar-modeline-object t)))
 
-      (if (and (stringp username) (stringp password))
-	  (let ((buffer (get-buffer-create pianobar-buffer)))
-	    (with-current-buffer buffer
-	      (make-comint-in-buffer "pianobar" buffer pianobar-command)
-	      (comint-send-string buffer (concat username "\n"))
-	      (comint-send-string buffer (concat password "\n"))
-	      (if (stringp pianobar-station)
-		  (comint-send-string buffer (concat pianobar-station "\n")))
-	      (buffer-disable-undo)
-	      (pianobar-mode))
-
-	    (cond ((boundp 'mode-line-modes)
-		   (add-to-list 'mode-line-modes pianobar-modeline-object t))
-		  ((boundp 'global-mode-string)
-		   (add-to-list 'global-mode-string pianobar-modeline-object t)))
-
-	    (if (not pianobar-run-in-background)
-		(set-window-buffer (selected-window) buffer)))))))
-
-(defun helm-pandora ()
-  "A helm interface to Pandora via pianobar."
-  (interactive)
-  (unless (process-status "*pianobar*") 
-    (let ((pianobar-run-in-background t))
-      (pianobar)))
-  (helm :sources `(((name . ,(format "%s - playing %s by %s."
-				     pianobar-current-station
-				     pianobar-current-song
-				     pianobar-current-artist))
-		    (candidates . (("Next song" . pianobar-next-song)
-				   ("Love song" . pianobar-love-current-song)
-				   ("Ban song" . pianobar-ban-current-song)
-				   ("Song information" . (lambda ()
-							   (message "%s - playing %s by %s."
-								    pianobar-current-station
-								    pianobar-current-song
-								    pianobar-current-artist)))
-				   ("Upcoming songs" . (lambda ()
-							 (pianobar-send-command ?u)
-							 (sleep-for 0.2)
-							 (with-current-buffer "*pianobar*"
-							   (goto-char (point-max))
-							   (re-search-backward "	 0\)")
-							   (buffer-substring-no-properties
-							    (point) (point-max)))))
-				   ("Toggle play/pause" . pianobar-play-or-pause)
-				   ("Increase volume" . (lambda ()
-							  (pianobar-send-command ?\))))
-				   ("Decrease volume" . (lambda ()
-							  (pianobar-send-command ?\()))
-				   ("*pianobar* buffer" . (lambda () (switch-to-buffer "*pianobar*")))
-				   ("Delete this station" . (lambda ()
-							      (comint-send-string "*pianobar*" "d\n\n")))
-				   ("Quit" . (lambda ()
-					       (pianobar-send-command ?q)
-					       (kill-buffer "*pianobar*")))))
-		    (action . (lambda (f) (funcall f))))
-		   ((name . "Stations")
-		    (candidates . ,(progn
-				     (comint-send-string "*pianobar*" "s\n\n")
-				     (sleep-for 0.2)
-				     (delq nil (mapcar
-						(lambda (s)
-						  (when (string-match "\\([0-9]+\\))" s)
-						    (cons s (match-string 1 s))))
-						(split-string (with-current-buffer "*pianobar*"
-								(goto-char (point-max))
-								(while (not (re-search-backward "	 0\)" nil t))
-								  (goto-char (point-max))
-								  (sleep-for 0.1)) 
-								(buffer-substring-no-properties
-								 (point) (point-max)))
-							      "\n" t)))))
-		    (action . (lambda (channel) 
-				(comint-send-string "*pianobar*" "\n\ns")
-				(comint-send-string "*pianobar*" (concat channel "\n"))))))))
-
-
+      (if (not pianobar-run-in-background)
+          (set-window-buffer (selected-window) buffer)))))
 
 (provide 'pianobar)
 

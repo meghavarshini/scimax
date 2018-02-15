@@ -495,33 +495,28 @@ fontification, as long as `org-src-fontify-natively' is non-nil."
 	("" "lmodern" nil)
 	("T1" "fontenc" t)
 	("" "fixltx2e" nil)
-	("" "graphicx" t)
+	("" "graphicx" nil)
 	("" "longtable" nil)
 	("" "float" nil)
 	("" "wrapfig" nil)
 	("" "rotating" nil)
-	("normalem" "ulem" t)
-	("" "amsmath" t)
-	("" "textcomp" t)
-	("" "marvosym" t)
-	("" "wasysym" t)
-	("" "amssymb" t)
-	("" "amsmath" t)
-	("version=3" "mhchem" t)
+	("normalem" "ulem" nil)
+	("" "amsmath" nil)
+	("" "textcomp" nil)
+	("" "marvosym" nil)
+	("" "wasysym" nil)
+	("" "amssymb" nil)
+	("" "amsmath" nil)
 	("numbers,super,sort&compress" "natbib" nil)
 	("" "natmove" nil)
 	("" "url" nil)
 	("" "minted" nil)
 	("" "underscore" nil)
-	("linktocpage,pdfstartview=FitH,colorlinks,
-linkcolor=blue,anchorcolor=blue,
-citecolor=blue,filecolor=blue,menucolor=blue,urlcolor=blue"
-	 "hyperref" nil)
 	("" "attachfile" nil)))
 
 ;; do not put in \hypersetup. Use your own if you want it e.g.
 ;; \hypersetup{pdfkeywords={%s},\n pdfsubject={%s},\n pdfcreator={%}}
-(setq org-latex-with-hyperref nil)
+(setq org-latex-with-hyperref t)
 
 ;; this is for code syntax highlighting in export. you need to use
 ;; -shell-escape with latex, and install pygments.
