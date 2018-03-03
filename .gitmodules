@@ -22,3 +22,9 @@
 [submodule "elpa"]
 	path = elpa
 	url = https://github.com/jkitchin/scimax-win-elpa
+[submodule "ob-ipython-upstream"]
+	path = ob-ipython-upstream
+	url = https://github.com/gregsexton/ob-ipython.git
+[submodule "org-mime"]
+	path = org-mime
+	url = https://github.com/org-mime/org-mime.git
