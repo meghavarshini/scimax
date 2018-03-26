@@ -33,16 +33,66 @@
 
 (global-button-lock-mode)
 
-;; Action key
-(global-set-key (kbd "s-<return>")
-		(lambda ()
-		  "Mimics a mouse-1 click. Buttons have a mouse-1
-action defined in their keymap. We just get it and call it."
-		  (interactive)
-		  (funcall (cdr
-			    (assoc
-			     'mouse-1
-			     (cdr (get-text-property (point) 'keymap)))))))
+(defmacro scimax-functional-text (regexp action &rest plist)
+  "A button-lock button maker.
+REGEXP is the regular expression to match. It may have subgroups
+in it that are accessible in the ACTION. ACTION is either a list
+of sexps that are the body of a function, a lambda function, or a
+quoted symbol of a function. You can access the regexp subgroups
+in this function. PLIST is the rest of the arguments for
+`button-lock-set-button'. I like <return> to be active, so it is
+set by default. If you have a help-echo function it is also
+wrapped so that it too can have access to the match-data.
+"
+  (when (and (listp action) (functionp (cadr action)))
+    (setq action `((funcall-interactively ,action))))
+  ;; wrap the help-echo so match-data is available
+  (when (and (plist-get plist :help-echo)
+	     (functionp (plist-get plist :help-echo)))
+    (setq plist (plist-put plist :help-echo
+			   `(lambda (win buf pt)
+			      (save-excursion
+				;; This is clunky, but with grouping the
+				;; properties may not extend to the whole
+				;; regexp.
+				(goto-char (previous-single-property-change pt
+									    'button-lock))
+				;; now make sure we see it again to get the match-data 
+				(save-match-data
+				  (while (not (looking-at ,regexp))
+				    (backward-char)) 
+				  (funcall ,(plist-get plist :help-echo) win buf pt)))))))
+  `(button-lock-register-global-button
+    ,regexp
+    ;; Suggested in https://github.com/rolandwalker/button-lock/issues/10
+    (lambda (event)
+      (interactive "e")
+      (let ((click-pos (posn-point (event-end event))))
+	(save-mark-and-excursion
+	 (save-match-data
+	   ;; This is clunky, but with grouping the properties may not extend to
+	   ;; the whole regexp, e.g. if you set properties on a subgroup.
+	   (goto-char (previous-single-property-change click-pos
+						       'button-lock))
+	   ;; now make sure we see it again to get the match-data
+	   (while (not (looking-at ,regexp))
+	     (backward-char))
+	   ,@action))))
+    ;; I like to press return on functional text to activate it.
+    :keyboard-binding "RET"
+    ;; These are the rest of the properties
+    ,@plist))
+
+
+(defun scimax-flyspell-ignore-buttons (orig-fun &rest args)
+  "Ignore flyspell on buttons.
+The overlays hijack mouse clicks and functions. This gives
+button-lock precedence in org-mode. It is used as advice on
+`org-mode-flyspell-verify'."
+  (and (apply orig-fun args)
+       (not (get-text-property (point) 'button-lock))))
+
+(advice-add 'org-mode-flyspell-verify :around 'scimax-flyspell-ignore-buttons)
 
 ;; * Email addresses
 ;; johnrkitchin@gmail.com
@@ -56,7 +106,7 @@ _c_: Contacts _m_: Mail
   ("c" (let ((ivy-initial-inputs-alist `((ivy-contacts . ,(thing-at-point 'email)))))
 	 (ivy-contacts))))
 
-(button-lock-set-button
+(scimax-functional-text
  thing-at-point-email-regexp
  'mail-address/body
  :face (list 'link)
@@ -76,7 +126,7 @@ _c_: Contacts _m_: Mail
 ;; The regex is too weak for these. These include Facebook, LinkedIn, and
 ;; others.
 
-(defvar @username-handle-regexp "\\(^\\|[[:space:]]\\|\\s(\\)\\(?2:@\\(?1:[[:alnum:]]*\\)\\)"
+(defvar @username-handle-regexp "\\(^\\|[[:space:]]\\|\\s(\\)\\(?2:@\\(?1:[[:alnum:]]+\\)\\)"
   "Regexp for a username handle.
 It looks like @username preceded by a space, an opening bracket
 The handle is in group 1.
@@ -84,23 +134,11 @@ These are defined by @username. This pattern will not match
 usernames with punctuation in them, this is partly by design to
 avoid matching emails too.")
 
-
-(defun @username-handle-at-p ()
-  "Return username handle that point is within or nil."
-  (interactive)
-  (save-excursion
-    (re-search-backward "\\s-@")
-    (when (looking-at @username-handle-regexp)
-      (match-string-no-properties 1))))
-
-
 (defun @username-open (url-pattern)
   "If point is at an @username, open it in URL-PATTERN.
 URL-PATTERN should have one %s in it which is replaced by username."
   (interactive)
-  (if-let (username (@username-handle-at-p))
-      (browse-url (format url-pattern username))
-    (message "No username found here.")))
+  (browse-url (format url-pattern (match-string 1))))
 
 
 (defhydra @username (:color blue :hint nil)
@@ -120,7 +158,7 @@ _G_: GitLab     _l_: LinkedIn _r_: reddit  _t_: Twitter
   ("t" (@username-open "https://twitter.com/%s")))
 
 
-(button-lock-set-button
+(scimax-functional-text
  @username-handle-regexp
  '@username/body
  :grouping 2
@@ -135,26 +173,15 @@ _G_: GitLab     _l_: LinkedIn _r_: reddit  _t_: Twitter
 ;; They also could have different contexts, maybe Twitter, maybe Instagram, or
 ;; tags in org-mode, etc. so we also define a hydra for this.
 
-(defvar hashtag-regexp "\\(^\\|[[:space:]]\\|\\s(\\)\\(?2:#\\(?1:[[:alnum:]]*\\)\\)"
+(defvar hashtag-regexp "\\(^\\|[[:space:]]\\|\\s(\\)\\(?2:#\\(?1:[[:alnum:]]+\\)\\)"
   "A regexp for a hashtag.
 The hashtag is in group 1.")
-
-(defun hashtag-at-p ()
-  "Return hashtag that point is within or nil."
-  (let* ((case-fold-search t))
-    (save-excursion
-      (re-search-backward "\\s-#")
-      (when (looking-at hashtag-regexp)
-	(match-string-no-properties 1)))))
-
 
 (defun hashtag-open (url-pattern)
   "If point is at a hashtag, open it in URL-PATTERN.
 URL-PATTERN should have one %s in it which is replaced by the hashtag."
   (interactive)
-  (if-let (hashtag (hashtag-at-p))
-      (browse-url (format url-pattern hashtag))
-    (message "No hashtag found here.")))
+  (browse-url (format url-pattern (match-string 1))))
 
 (defhydra hashtag (:color blue :hint nil)
   "
@@ -166,7 +193,7 @@ _f_: Facebook _i_: Instagram  _o_: org-tag  _t_: Twitter"
   ("t" (hashtag-open "https://twitter.com/hashtag/%s")))
 
 
-(button-lock-set-button
+(scimax-functional-text
  hashtag-regexp
  'hashtag/body
  :grouping 2
@@ -177,7 +204,7 @@ _f_: Facebook _i_: Instagram  _o_: org-tag  _t_: Twitter"
 ;; ** Github issues
 ;; When the link in a git repo, make it open the issue.
 ;; issue #153 -> https://github.com/jkitchin/scimax/issues/153
-(defvar github-issue-regexp "issue\\s-+#\\([0-9]+\\)"
+(defvar github-issue-regexp "issue\\s-+#\\(?1:[0-9]+\\)"
   "Regexp for a github issue.")
 
 (defhydra github-issue (:color blue :hint nil)
@@ -192,22 +219,20 @@ _g_: Github"
 (defun github-issue-at-p ()
   "Return url to the issue if we are at one."
   (save-excursion
-    (re-search-backward "i")
-    (when (looking-at github-issue-regexp)
-      (let* ((project-name
-	      ;; assume something like: git@github.com:jkitchin/scimax.git
-	      (substring
-	       (second
-		(s-split
-		 ":"
-		 (s-trim (shell-command-to-string "git remote get-url origin"))))
-	       nil -4))
-	     (issue (match-string-no-properties 1))
-	     (url (format "https://github.com/%s/issues/%s"
-			  project-name issue)))
-	url))))
+    (let* ((project-name
+	    ;; assume something like: git@github.com:jkitchin/scimax.git
+	    (substring
+	     (second
+	      (s-split
+	       ":"
+	       (s-trim (shell-command-to-string "git remote get-url origin"))))
+	     nil -4))
+	   (issue (match-string-no-properties 1))
+	   (url (format "https://github.com/%s/issues/%s"
+			project-name issue)))
+      url)))
 
-(button-lock-set-button
+(scimax-functional-text
  github-issue-regexp
  'github-issue/body
  :face (list 'link)
@@ -218,26 +243,24 @@ _g_: Github"
 ;; pull #146
 ;; pr #146
 
-(defvar pull-request-regexp "\\(?:pull request\\|pr\\|pull\\)\\s-+#\\([0-9]+\\)"
+(defvar pull-request-regexp "\\(?:pull request\\|pr\\|pull\\)\\s-+#\\(?1:[0-9]+\\)"
   "Regexp for a pull request.")
 
 (defun pull-request-at-p ()
   "Return url to pull request."
   (save-excursion
-    (re-search-backward "p")
-    (when (looking-at pull-request-regexp)
-      (let* ((project-name
-	      ;; assume something like: git@github.com:jkitchin/scimax.git
-	      (substring
-	       (second
-		(s-split
-		 ":"
-		 (s-trim (shell-command-to-string "git remote get-url origin"))))
-	       nil -4))
-	     (pull-request (match-string-no-properties 1))
-	     (url (format "https://github.com/%s/pull/%s"
-			  project-name pull-request)))
-	url))))
+    (let* ((project-name
+	    ;; assume something like: git@github.com:jkitchin/scimax.git
+	    (substring
+	     (second
+	      (s-split
+	       ":"
+	       (s-trim (shell-command-to-string "git remote get-url origin"))))
+	     nil -4))
+	   (pull-request (match-string-no-properties 1))
+	   (url (format "https://github.com/%s/pull/%s"
+			project-name pull-request)))
+      url)))
 
 (defhydra github-pull-request (:color blue :hint nil)
   "
@@ -248,7 +271,7 @@ _g_: Github"
 	 (when-let (url (pull-request-at-p))
 	   (browse-url url)))))
 
-(button-lock-set-button
+(scimax-functional-text
  pull-request-regexp
  'github-pull-request/body
  :face (list 'link)
@@ -264,20 +287,18 @@ _g_: Github"
 (defun github-commit-at-p ()
   "Return (project-name hash full-hash)."
   (save-excursion
-    (re-search-backward "c")
-    (when (looking-at github-commit-regexp)
-      (let* ((project-name
-	      ;; assume something like: git@github.com:jkitchin/scimax.git
-	      (substring
-	       (second
-		(s-split
-		 ":"
-		 (s-trim (shell-command-to-string "git remote get-url origin"))))
-	       nil -4))
-	     (hash (match-string-no-properties 2))
-	     (full-hash (s-trim (shell-command-to-string (format "git rev-parse %s" hash)))))
-	(when hash
-	  (list project-name hash full-hash))))))
+    (let* ((project-name
+	    ;; assume something like: git@github.com:jkitchin/scimax.git
+	    (substring
+	     (second
+	      (s-split
+	       ":"
+	       (s-trim (shell-command-to-string "git remote get-url origin"))))
+	     nil -4))
+	   (hash (match-string-no-properties 2))
+	   (full-hash (s-trim (shell-command-to-string (format "git rev-parse %s" hash)))))
+      (when hash
+	(list project-name hash full-hash)))))
 
 (defhydra git-commit (:color blue :hint nil)
   "
@@ -291,7 +312,7 @@ _g_: Github _m_: Magit log
 	 (browse-url url)))
   ("m" (magit-log (list (third (github-commit-at-p))))))
 
-(button-lock-set-button
+(scimax-functional-text
  github-commit-regexp
  'git-commit/body
  :face (list 'link)
