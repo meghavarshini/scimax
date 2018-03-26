@@ -151,7 +151,8 @@ sentence in the region."
       (capitalize-word 1))))
 
 
-(global-set-key (kbd "M-<backspace>") 'backward-kill-sentence)
+(global-set-key (kbd "M-<backspace>") 'backward-kill-word)
+(global-set-key (kbd "C-<backspace>") 'backward-kill-sentence)
 
 
 (defun avy-jump-to-sentence ()
