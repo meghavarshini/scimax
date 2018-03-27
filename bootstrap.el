@@ -6,7 +6,7 @@
 
 ;;; Code:
 
-(package-initialize)
+;; (package-initialize)
 
 (unless (package-installed-p 'diminish)
   (package-refresh-contents)
