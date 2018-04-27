@@ -541,7 +541,12 @@
 
 (use-package undo-tree
   :diminish undo-tree-mode
-  :config (global-undo-tree-mode))
+  :config
+  (global-undo-tree-mode)
+  (global-set-key (kbd "C-z") 'undo)
+  ;; make ctrl-Z redo
+  (defalias 'redo 'undo-tree-redo)
+  (global-set-key (kbd "C-S-z") 'redo))
 
 ;; Note ws-butler-global-mode causes some issue with org-ref ref links. If you
 ;; are right after one you cannot add a space without getting a new line.
