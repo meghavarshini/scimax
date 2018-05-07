@@ -494,7 +494,6 @@ fontification, as long as `org-src-fontify-natively' is non-nil."
       '(("AUTO" "inputenc" t)
 	("" "lmodern" nil)
 	("T1" "fontenc" t)
-	("" "fixltx2e" nil)
 	("" "graphicx" nil)
 	("" "longtable" nil)
 	("" "float" nil)
@@ -551,6 +550,18 @@ fontification, as long as `org-src-fontify-natively' is non-nil."
 (add-to-list 'org-latex-classes
 	     '("article-no-defaults"                          ;class-name
 	       "\\documentclass{article}
+ [NO-DEFAULT-PACKAGES]
+ [PACKAGES]
+ [EXTRA]" ;;header-string
+	       ("\\section{%s}" . "\\section*{%s}")
+	       ("\\subsection{%s}" . "\\subsection*a{%s}")
+	       ("\\subsubsection{%s}" . "\\subsubsection*{%s}")
+	       ("\\paragraph{%s}" . "\\paragraph*{%s}")
+	       ("\\subparagraph{%s}" . "\\subparagraph*{%s}")))
+
+(add-to-list 'org-latex-classes
+	     '("apa"                          ;class-name
+	       "\\documentclass{apa6}
  [NO-DEFAULT-PACKAGES]
  [PACKAGES]
  [EXTRA]" ;;header-string
