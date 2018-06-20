@@ -552,6 +552,11 @@
 ;; are right after one you cannot add a space without getting a new line.
 (use-package ws-butler)
 
+(use-package yasnippet)
+
+(unless (version-list-<= (version-to-list emacs-version) '(25 3 1))
+  (use-package ivy-yasnippet
+    :bind ("H-," . ivy-yasnippet)))
 
 ;; * Scimax packages
 (use-package scimax
@@ -633,6 +638,10 @@
   :load-path scimax-dir)
 
 (use-package scimax-ivy
+  :ensure nil
+  :load-path scimax-dir)
+
+(use-package scimax-yas
   :ensure nil
   :load-path scimax-dir)
 

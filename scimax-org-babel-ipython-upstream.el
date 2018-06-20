@@ -14,6 +14,12 @@
 
 ;; * Customizations
 
+;;; Code:
+
+(defcustom ob-ipython-eldoc-integration nil
+  "If non-nil use eldoc to show signatures."
+  :group 'ob-ipython)
+
 (defcustom ob-ipython-buffer-unique-kernel t
   "If non-nil use a unique kernel for each buffer."
   :group 'ob-ipython)
@@ -94,6 +100,7 @@ string to be formatted."
     ("H-m" . #'scimax-merge-ipython-blocks)
     ("H-h" . #'scimax-ob-edit-header)
     ("H-M-l" . #'scimax-ob-toggle-line-numbers)
+    ("s-." . #'scimax-ob-ipython-complete-ivy)
 
     ;; the jupyter hydras
     ("H-e" . #'scimax-jupyter-edit-mode/body)
@@ -106,7 +113,7 @@ string to be formatted."
     ("H-s" . #'scimax-obi/body)
     ("<mouse-3>" . #'scimax-ob-ipython-popup-command))
   "An alist of key bindings and commands.
-These are activated in `ob-ipython-key-bindings'."
+These are activated in function `ob-ipython-key-bindings'."
   :group 'ob-ipython)
 
 (defcustom ob-ipython-menu-items
@@ -211,7 +218,7 @@ You need this to get syntax highlighting."
     _<return>_: current           _i_: previous  _w_: move up     _/_: inspect
   _S-<return>_: current to next   _k_: next      _s_: move down   _l_: clear result
 _S-M-<return>_: to point          _q_: visible   _x_: kill        _L_: clear all
-  _s-<return>_: Restart/block     _Q_: any       _n_: copy
+  _s-<return>_: Restart/block     _Q_: any       _n_: copy        _._: complete
 _M-s-<return>_: Restart/to point  ^ ^            _c_: clone
   _H-<return>_: Restart/buffer    ^ ^            _m_: merge
            _K_: kill kernel       ^ ^            _-_: split
@@ -245,7 +252,8 @@ _M-s-<return>_: Restart/to point  ^ ^            _c_: clone
   ("L" scimax-ob-clear-all-results)
   ("h" scimax-ob-edit-header)
 
-  ("/" ob-ipython-inspect))
+  ("/" ob-ipython-inspect)
+  ("." scimax-ob-ipython-complete-ivy))
 
 ;; * command/edit-mode hydra
 
@@ -254,8 +262,7 @@ _M-s-<return>_: Restart/to point  ^ ^            _c_: clone
 (defun ob-ipython-convert-block-to (type)
   "Convert current block to TYPE.
 TYPE is usually one of ipython, markdown, org
-Note: you will lose header arguments from this.
-"
+Note: you will lose header arguments from this."
   (interactive (list (completing-read "Type: " '(ipython markdown org))))
   (let* ((src-info (org-babel-get-src-block-info 'light))
 	 (header-start (sixth src-info))
@@ -390,6 +397,7 @@ previous cell."
      (t
       (previous-line)))))
 
+
 (defun ob-ipython-edit-down ()
   "Move to next line, unless at the bottom.
 In that case first move to beginning of line, and then move to
@@ -411,6 +419,7 @@ previous cell."
       (end-of-line))
      (t
       (next-line)))))
+
 
 ;; https://www.cheatography.com/weidadeyue/cheat-sheets/jupyter-notebook/
 (defhydra scimax-jupyter-command-mode (:color blue :hint nil)
@@ -490,7 +499,7 @@ _s_: save buffer  _z_: undo _<return>_: edit mode
   ;; ("h" "Show keyboard help")
   ("ii" ob-ipython-interrupt-kernel "Interrupt kernel")
   ;; 00 is not a good hydra command
-  ("0" (when (y-or-n-p "Restart kernel?")
+  ("0" (when (y-or-n-p "Restart kernel? ")
 	 (call-interactively 'ob-ipython-kill-kernel)) "restart kernel")
   ;; Emacs has the opposite scroll convention as a browser
   ("<SPC>" scroll-up-command "scroll down" :color red)
@@ -501,15 +510,19 @@ _s_: save buffer  _z_: undo _<return>_: edit mode
 
 (define-prefix-command 'scimax-ob-ipython-mode-map)
 
+
 (easy-menu-define ob-ipython-menu scimax-ob-ipython-mode-map "ob-ipython menu"
   ob-ipython-menu-items)
+
 
 (defun ob-ipython-org-menu ()
   "Add the ob-ipython menu to the Org menu."
   (easy-menu-change '("Org") "ob-ipython" ob-ipython-menu-items "Show/Hide")
   (easy-menu-change '("Org") "--" nil "Show/Hide"))
 
+
 (add-hook 'org-mode-hook 'ob-ipython-org-menu)
+
 
 (defun scimax-ob-ipython-popup-command (event)
   "Popu a menu of actions for src blocks."
@@ -521,7 +534,7 @@ _s_: save buffer  _z_: undo _<return>_: edit mode
 ;; * Execution functions
 
 (defun scimax-ob-ipython-default-session ()
-  "Returns the default name of the session for a src block."
+  "Return the default name of the session for a src block."
   (concat
    ;; this is the block language
    (car (org-babel-get-src-block-info t))
@@ -530,8 +543,9 @@ _s_: save buffer  _z_: undo _<return>_: edit mode
        (md5 (expand-file-name bf))
      "scratch")))
 
+
 (defun scimax-ob-ipython-restart-kernel-execute-block ()
-  "Restart kernel and execute block"
+  "Restart kernel and execute block."
   (interactive)
   (ob-ipython-kill-kernel
    (cdr (assoc (scimax-ob-ipython-default-session )
@@ -540,7 +554,7 @@ _s_: save buffer  _z_: undo _<return>_: edit mode
 
 
 (defun scimax-ob-ipython-restart-kernel-execute-buffer ()
-  "Restart kernel and execute buffer"
+  "Restart kernel and execute buffer."
   (interactive)
   (ob-ipython-kill-kernel
    (cdr (assoc (scimax-ob-ipython-default-session)
@@ -558,7 +572,7 @@ _s_: save buffer  _z_: undo _<return>_: edit mode
 (defun scimax-ob-ipython-kill-kernel ()
   "Kill the active kernel."
   (interactive)
-  (when (y-or-n-p "Kill kernel?")
+  (when (y-or-n-p "Kill kernel? ")
     (ob-ipython-kill-kernel
      (cdr (assoc (scimax-ob-ipython-default-session)
 		 (ob-ipython--get-kernel-processes))))
@@ -625,8 +639,8 @@ variables, etc."
 ;; * Modifications of ob-ipython
 
 (defun ob-ipython-kill-kernel (proc)
-  "Kill a kernel process. If you then re-evaluate a source block
-a new kernel will be started."
+  "Kill a kernel process.
+If you then re-evaluate a source block a new kernel will be started."
   (interactive (ob-ipython--choose-kernel))
   (when proc
     (let* ((proc-name (process-name proc))
@@ -725,6 +739,7 @@ This function is called by `org-babel-execute-src-block'."
 ;; It was necessary to redefine these to get selective outputs via :display
 
 (defun ob-ipython--execute-async (body params)
+  "Execute asynchronously."
   (let* ((file (cdr (assoc :ipyfile params)))
          (session (cdr (assoc :session params)))
          (result-type (cdr (assoc :result-type params)))
@@ -892,6 +907,19 @@ a filename is generated."
 		  (format "[[file:%s]]" file)))))
 
 
+(defun ob-ipython--write-base64-string (file b64-string)
+  "Write to FILE the image in B64-STRING.
+Note: the original version of this would sometimes hang, so I
+rewrote this."
+  (if b64-string
+      (progn
+	(unless (file-directory-p (file-name-directory file))
+	  (make-directory (file-name-directory file) t))
+	(with-temp-file file
+	  (insert (base64-decode-string b64-string))))
+    (error "No output was produced to write to a file.")))
+
+
 (defun ob-ipython-format-image/svg+xml (file-or-nil value)
   "Format VALUE for image/svg+xml mime-types.
 FILE-OR-NIL if non-nil is the file to save the image in. If nil,
@@ -945,7 +973,7 @@ way, but I have left it in for compatibility."
     (cond ((string= "ok" status) `((:result . ,(ob-ipython--extract-result service-response))
                                    (:output . ,(ob-ipython--extract-output service-response))
                                    (:exec-count . ,(ob-ipython--extract-execution-count service-response))))
-          ((string= "abort" status) (error "Kernel execution aborted."))
+          ((string= "abort" status) (error "Kernel execution aborted"))
           ((string= "error" status)
 	   (if ob-ipython-exception-results
 	       (let ((error-content
@@ -1005,13 +1033,127 @@ Note, this does not work if you run the block async."
       (-if-let (result (->> (ob-ipython--inspect code pos)
 			    (assoc 'text/plain)
 			    cdr))
-	  (setq inspect-buffer (ob-ipython--create-inspect-buffer result))
-	(message "No documentation was found. Have you run the cell?")))
+	  (setq inspect-buffer (ob-ipython--create-inspect-buffer result))))
 
     (when return
       (with-current-buffer "*ob-ipython-src-edit-inspect*"
 	(org-edit-src-exit)))
-    (when inspect-buffer (pop-to-buffer inspect-buffer))))
+    (when inspect-buffer
+      (pop-to-buffer inspect-buffer)
+      (goto-char (point-min)))))
+
+
+;; * eldoc integration
+
+(defun scimax-ob-ipython-signature ()
+  "Try to return a function signature for the thing at point."
+  (when (and (eql major-mode 'org-mode)
+	     (string= (or (get-text-property (point) 'lang) "") "ipython"))
+    (save-window-excursion
+      (ob-ipython-inspect (current-buffer) (point))
+      (when (get-buffer "*ob-ipython-inspect*")
+	(with-current-buffer "*ob-ipython-inspect*"
+	  (goto-char (point-min))
+	  (prog1
+	      (cond
+	       ((re-search-forward "Signature:" nil t 1)
+		(buffer-substring (line-beginning-position) (line-end-position)))
+	       ((re-search-forward "Docstring:" nil t 1)
+		(forward-line)
+		(buffer-substring (line-beginning-position) (line-end-position)))
+	       (t
+		nil))
+	    ;; get rid of this so we don't accidently show old results later
+	    (with-current-buffer "*ob-ipython-inspect*"
+	      (toggle-read-only)
+	      (erase-buffer))))))))
+
+
+;; The org-eldoc-documentation-function has hard-coded language options, with no
+;; obvious way to hook into it for this application. So, I am just advising the
+;; function to check for ipython blocks, and run the original function if not in
+;; a block.
+(defun scimax-ob-ipython-eldoc-advice (orig-func &rest args)
+  "Advice function to get eldoc signatures in blocks in org-mode."
+  (or (scimax-ob-ipython-signature) (apply orig-func args)))
+
+
+(defun scimax-ob-ipython-turn-on-eldoc ()
+  "Turn on eldoc signatures."
+  (interactive)
+  (advice-add 'org-eldoc-documentation-function :around #'scimax-ob-ipython-eldoc-advice))
+
+
+(defun scimax-ob-ipython-turn-off-eldoc ()
+  "Turn off eldoc signatures."
+  (interactive)
+  (advice-remove 'org-eldoc-documentation-function  #'scimax-ob-ipython-eldoc-advice))
+
+
+(when ob-ipython-eldoc-integration
+  (scimax-ob-ipython-turn-on-eldoc))
+
+;; * Completion
+;; This makes this function work from an org-buffer.
+(defun ob-ipython-completions (buffer pos)
+  "Ask a kernel for completions on the thing at POS in BUFFER."
+  (interactive (list (current-buffer) (point)))
+  (let ((return (org-in-src-block-p))
+	completion-buffer)
+    (when return
+      (org-edit-src-code nil "*ob-ipython-src-edit-completion*"))
+
+    (prog1
+	(let* ((code (with-current-buffer buffer
+                       (buffer-substring-no-properties (point-min) (point-max))))
+               (resp (ob-ipython--complete-request code pos))
+               (status (ob-ipython--extract-status resp)))
+	  (if (not (string= "ok" status))
+              '()
+	    (->> resp
+		 (-filter (lambda (msg)
+			    (-contains? '("complete_reply")
+					(cdr (assoc 'msg_type msg)))))
+		 (-mapcat (lambda (msg)
+			    (->> msg
+				 (assoc 'content)
+				 cdr))))))
+      (when return
+	(with-current-buffer "*ob-ipython-src-edit-completion*"
+	  (org-edit-src-exit))))))
+
+;; Adapted to enable in org-buffers. Note, to enable this, you have to add
+;; (add-to-list 'company-backends 'company-ob-ipython) to an init file
+(defun company-ob-ipython (command &optional arg &rest ignored)
+  (interactive (list 'interactive))
+  (cl-case command
+    (interactive (company-begin-backend 'company-ob-ipython))
+    (prefix (and (or ob-ipython-mode (string= (or (get-text-property (point) 'lang) "") "ipython"))
+                 (let ((res (ob-ipython-completions (current-buffer) (1- (point)))))
+                   (substring-no-properties (buffer-string)
+                                            (cdr (assoc 'cursor_start res))
+                                            (cdr (assoc 'cursor_end res))))))
+    (candidates (cons :async (lambda (cb)
+                               (let ((res (ob-ipython-completions
+                                           (current-buffer) (1- (point)))))
+                                 (funcall cb (cdr (assoc 'matches res)))))))
+    (sorted t)
+    (doc-buffer (ob-ipython--company-doc-buffer
+                 (cdr (assoc 'text/plain (ob-ipython--inspect arg (length arg))))))))
+
+
+(defun scimax-ob-ipython-complete-ivy ()
+  "Use ivy to complete the thing at point."
+  (interactive)
+  (let* ((result (ob-ipython-completions (current-buffer) (1- (point))))
+	 (candidates (cdr (assoc 'matches result)))
+	 (beg (1+ (cdr (assoc 'cursor_start result))))
+	 (end (1+ (cdr (assoc 'cursor_end result)))))
+    (ivy-read "Complete: " candidates
+	      :action (lambda (candidate)
+			(with-ivy-window
+			  (setf (buffer-substring beg end) candidate)
+			  (forward-char (length candidate)))))))
 
 
 ;; * clickable text buttons
