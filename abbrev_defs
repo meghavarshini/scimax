@@ -99,8 +99,6 @@
 
 (define-abbrev-table 'eshell-mode-abbrev-table '())
 
-(define-abbrev-table 'ess-julia-mode-abbrev-table '())
-
 (define-abbrev-table 'ffip-diff-mode-abbrev-table '())
 
 (define-abbrev-table 'flymake-diagnostics-buffer-mode-abbrev-table '())
@@ -123,8 +121,6 @@
 
 (define-abbrev-table 'idl-mode-abbrev-table '())
 
-(define-abbrev-table 'inferior-julia-mode-abbrev-table '())
-
 (define-abbrev-table 'inferior-python-mode-abbrev-table '())
 
 (define-abbrev-table 'ivy-occur-grep-mode-abbrev-table '())
@@ -134,8 +130,6 @@
 (define-abbrev-table 'java-mode-abbrev-table
   '(
    ))
-
-(define-abbrev-table 'julia-mode-abbrev-table '())
 
 (define-abbrev-table 'latex-mode-abbrev-table '())
 
