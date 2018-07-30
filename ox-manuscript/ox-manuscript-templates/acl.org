@@ -1,0 +1,57 @@
+#+TEMPLATE: ACL
+#+key: acl
+#+group: manuscript
+#+contributor: Irfan S <irfans2@illinois.edu>
+#+default-filename: draft.org
+
+#+TITLE: <replace: title>
+#+latex_class: article-no-defaults
+#+OPTIONS: |:nil toc:nil author:nil date:nil
+#+latex_class_options: [11pt,a4paper]
+#+EXPORT_EXCLUDE_TAGS: noexport
+
+#+latex_header: \usepackage[hyperref]{acl2017}
+#+latex_header: \usepackage{times}
+#+latex_header: \usepackage{minted}
+#+latex_header: \usepackage{float}
+#+latex_header: \usepackage{latexsym}
+#+latex_header: \usepackage{graphicx}
+#+latex_header: \usepackage{url}
+#+latex_header: \usepackage{cleveref}
+#+latex_header: % \aclfinalcopy
+
+#+latex_header: \author{<replace: with name>}
+#+latex_header: \affiliation{<replace: with address>}
+
+#+latex_header: \author{<replace: with corresponding author>}
+#+latex_header: \email{<replace: with email>}
+#+latex_header: \affiliation{<replace: with address>}
+
+
+#+begin_abstract
+<replace: abstract text>
+#+end_abstract
+
+\maketitle
+
+* Introduction
+
+* Methods
+
+* Results and Discussion
+
+* Conclusions
+
+* References
+
+bibliography:<replace: bibfiles>
+bibliographystyle:acl
+
+* build					:noexport:
+elisp:ox-manuscript-build-submission-manuscript-and-open
+
+** Preparation of the manuscript zip file
+#+BEGIN_SRC sh
+rm -f manuscript.zip
+zip manuscript.zip figures/*.eps manuscript.tex figures/TOC.eps
+#+END_SRC
