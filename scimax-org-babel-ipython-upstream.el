@@ -729,10 +729,23 @@ This function is called by `org-babel-execute-src-block'."
 	       (when (get-buffer buf)
 		 (kill-buffer buf)))))
   ;; I think this returns the results that get inserted by
-  ;; `org-babel-execute-src-block'.
-  (if (assoc :async params)
-      (ob-ipython--execute-async body params)
-    (ob-ipython--execute-sync body params)))
+  ;; `org-babel-execute-src-block'. If there is an exec-dir, we wrap this block
+  ;; to temporarily change to that directory.
+  (let* ((exec-dir (cdr (assoc :dir params)))
+         (exec-body (concat
+                     (when exec-dir
+                       (concat "from os import chdir as __ob_ipy_chdir; "
+			       "from os import getcwd as __ob_ipy_getcwd; "
+			       "__ob_ipy_cwd = __ob_ipy_getcwd(); "
+			       " __ob_ipy_chdir(\""
+			       exec-dir
+			       "\")\n"))
+                     body
+		     (when exec-dir
+		       "\n__ob_ipy_chdir(__ob_ipy_cwd)"))))
+    (if (assoc :async params)
+	(ob-ipython--execute-async exec-body params)
+      (ob-ipython--execute-sync exec-body params))))
 
 
 ;; ** Fine tune the output of blocks
@@ -845,7 +858,9 @@ compatibility with the other formatters."
 (defun ob-ipython-format-text/plain (file-or-nil value)
   "Format VALUE for text/plain mime-types.
 FILE-OR-NIL is not used in this function."
-  (let ((lines (s-lines value)))
+  (let ((lines (s-lines value))
+	(raw (-contains?
+	      (s-split " " (cdr (assoc :results (caddr (org-babel-get-src-block-info t))))) "raw")))
     ;; filter out uninteresting lines.
     (setq lines (-filter (lambda (line)
 			   (not (-any (lambda (regex)
@@ -854,7 +869,10 @@ FILE-OR-NIL is not used in this function."
 			 lines))
     (when lines
       ;; Add verbatim start string
-      (setq lines (mapcar (lambda (s) (s-concat ": " s)) lines))
+      (setq lines (mapcar (lambda (s) (s-concat
+				       (if raw "" ": ")
+				       s))
+			  lines))
       (when ob-ipython-show-mime-types
 	(setq lines (append '("# text/plain") lines)))
       (s-join "\n" lines))))
