@@ -234,8 +234,7 @@
        (ess-fl-keyword:operators . t)
        (ess-fl-keyword:delimiters)
        (ess-fl-keyword:=)
-       (ess-R-fl-keyword:F&T)
-       (ess-R-fl-keyword:%op% . t))))))
+       (ess-R-fl-keyword:F&T))))))
 
 
 (use-package esup)
@@ -504,7 +503,7 @@
   ("C-c pp" . projectile-switch-project)
   ("C-c pb" . projectile-switch-to-buffer)
   ("C-c pf" . projectile-find-file)
-  ("C-c pg" . projectile-grep)
+  ("C-c pg" . helm-projectile-grep)
   ("C-c pk" . projectile-kill-buffers)
   ;; nothing good in the modeline to keep.
   :diminish ""
