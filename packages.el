@@ -505,7 +505,7 @@
   ("C-c pp" . projectile-switch-project)
   ("C-c pb" . projectile-switch-to-buffer)
   ("C-c pf" . projectile-find-file)
-  ("C-c pg" . helm-projectile-grep)
+  ("C-c pg" . projectile-grep)
   ("C-c pk" . projectile-kill-buffers)
   ;; nothing good in the modeline to keep.
   :diminish ""
