@@ -491,23 +491,14 @@ fontification, as long as `org-src-fontify-natively' is non-nil."
 (setq org-export-with-sub-superscripts '{})
 
 (setq org-latex-default-packages-alist
-      '(("AUTO" "inputenc" t)
-	("" "lmodern" nil)
-	("T1" "fontenc" t)
+      '(("" "lmodern" nil)
+	("" "fontspec" nil)
 	("" "graphicx" nil)
 	("" "longtable" nil)
 	("" "float" nil)
 	("" "wrapfig" nil)
 	("" "rotating" nil)
-	("normalem" "ulem" nil)
-	("" "amsmath" nil)
-	("" "textcomp" nil)
-	("" "marvosym" nil)
-	("" "wasysym" nil)
-	("" "amssymb" nil)
-	("" "amsmath" nil)
-	("numbers,super,sort&compress" "natbib" nil)
-	("" "natmove" nil)
+	("" "natbib" nil)
 	("" "url" nil)
 	("" "minted" nil)
 	("" "underscore" nil)
@@ -548,7 +539,7 @@ fontification, as long as `org-src-fontify-natively' is non-nil."
 ;; This is for when you don't want any default packages, and you want
 ;; to declare them all yourself.
 (add-to-list 'org-latex-classes
-	     '("article-no-defaults"                          ;class-name
+	     '("article-no-defaults"	;class-name
 	       "\\documentclass{article}
  [NO-DEFAULT-PACKAGES]
  [PACKAGES]
