@@ -10,8 +10,6 @@
 
 ;;; Code:
 
-(add-to-list 'Info-directory-list scimax-dir)
-
 (setq use-package-always-ensure t)
 
 ;; * org-mode
@@ -618,9 +616,9 @@
   :ensure nil
   :load-path (lambda () (expand-file-name "org-show" scimax-dir)))
 
-(use-package techela
-  :ensure nil
-  :load-path (lambda () (expand-file-name "techela" scimax-dir)))
+;; (use-package techela
+;;   :ensure nil
+;;   :load-path (lambda () (expand-file-name "techela" scimax-dir)))
 
 (use-package words
   :ensure nil
@@ -675,6 +673,8 @@
        scimax-load-user-dir
        (file-exists-p (expand-file-name "user.el" scimax-user-dir)))
   (load (expand-file-name "user.el" scimax-user-dir)))
+
+(add-to-list 'Info-directory-list scimax-dir)
 
 ;; * The end
 (provide 'packages)

@@ -140,6 +140,7 @@ These are activated in function `ob-ipython-key-bindings'."
      ["Jump to visible block" scimax-jump-to-visible-block t]
      ["Jump to block" scimax-jump-to-block t])
     ["Inspect" ob-ipython-inspect t]
+    ["Show source" (lambda () (interactive) (ob-ipython-inspect t)) t]
     ["Kill kernel" scimax-ob-ipython-kill-kernel t]
     ["Switch to repl" org-babel-switch-to-session t])
   "Items for the menu bar and popup menu."
@@ -638,6 +639,40 @@ variables, etc."
 
 ;; * Modifications of ob-ipython
 
+;;  I frequently get an error on startup that seems to be related to how long
+;;  jupyter takes to start up. Usually, I just run the cell again and it works.
+;;  This modification is designed to wait just long enough for the json file to
+;;  get created. This seems to fix the issue. It used to wait just 1 second, but
+;;  sometimes it takes up to two seconds to create this file (it is used in
+;;  driver.py I think).
+(defcustom scimax-create-kernel-max-wait 5
+  "Maximum seconds to wait before kernel program starts."
+  :group 'ob-ipython)
+
+(defun ob-ipython--create-kernel (name &optional kernel)
+  (when (and (not (ignore-errors (process-live-p (get-process (format "kernel-%s" name)))))
+             (not (s-ends-with-p ".json" name)))
+    (ob-ipython--create-process
+     (format "kernel-%s" name)
+     (append
+      (list ob-ipython-command "console" "--simple-prompt")
+      (list "-f" (ob-ipython--kernel-file name))
+      (if kernel (list "--kernel" kernel) '())
+      ;;should be last in the list of args
+      ob-ipython-kernel-extra-args))
+    (let ((i 0)
+	  (t0 (float-time))
+    	  (tincrement 0.1)
+    	  (cfile (expand-file-name
+    		  (ob-ipython--kernel-file name)
+    		  (s-trim (shell-command-to-string "jupyter --runtime-dir")))))
+      (while (and (not (file-exists-p cfile))
+		  (< (- (float-time) t0) scimax-create-kernel-max-wait))
+	(sleep-for tincrement))
+      (message "Kernel started in %1.2f seconds" (- (float-time) t0))
+      (setq header-line-format name))))
+
+
 (defun ob-ipython-kill-kernel (proc)
   "Kill a kernel process.
 If you then re-evaluate a source block a new kernel will be started."
@@ -652,7 +687,7 @@ If you then re-evaluate a source block a new kernel will be started."
 	(f-delete cfile))
       (delete-process proc)
       (kill-buffer (process-buffer proc))
-      (setq header-line nil)
+      (setq header-line-format nil)
       (message (format "Killed %s and deleted %s" proc-name cfile)))))
 
 
@@ -661,7 +696,7 @@ If you then re-evaluate a source block a new kernel will be started."
   "Execute a block of IPython code with Babel.
 This function is called by `org-babel-execute-src-block'."
 
-  ;; make sure we get prompted to kill the
+  ;; make sure we get prompted to kill the kernel when exiting.
   (when ob-ipython-kill-kernel-on-exit
     (add-hook 'kill-buffer-hook 'scimax-ob-ipython-kill-kernel nil t))
 
@@ -683,7 +718,6 @@ This function is called by `org-babel-execute-src-block'."
 
     ;; add the new session info
     (let ((session-name (scimax-ob-ipython-default-session)))
-      (setq header-line-format (format "IPython session: %s" session-name))
       (add-to-list 'org-babel-default-header-args:ipython
 		   (cons :session session-name))
       (setf (cdr (assoc :session params)) session-name)))
@@ -729,10 +763,30 @@ This function is called by `org-babel-execute-src-block'."
 	       (when (get-buffer buf)
 		 (kill-buffer buf)))))
   ;; I think this returns the results that get inserted by
-  ;; `org-babel-execute-src-block'.
-  (if (assoc :async params)
-      (ob-ipython--execute-async body params)
-    (ob-ipython--execute-sync body params)))
+  ;; `org-babel-execute-src-block'. If there is an exec-dir, we wrap this block
+  ;; to temporarily change to that directory.
+  (let* ((exec-dir (cdr (assoc :dir params)))
+         (exec-body (concat
+                     (when exec-dir
+                       (concat "from os import chdir as __ob_ipy_chdir; "
+			       "from os import getcwd as __ob_ipy_getcwd; "
+			       "__ob_ipy_cwd = __ob_ipy_getcwd(); "
+			       " __ob_ipy_chdir(\""
+			       exec-dir
+			       "\")\n"))
+                     body
+		     (when exec-dir
+		       "\n__ob_ipy_chdir(__ob_ipy_cwd)"))))
+    ;; Check if we are debugging
+    (if (string-match "^%pdb" exec-body)
+	(progn
+	  (pop-to-buffer (org-babel-initiate-session))
+	  (comint-send-string (get-buffer-process (current-buffer)) body)
+	  (comint-send-input))
+      ;; not debugging
+      (if (assoc :async params)
+	  (ob-ipython--execute-async exec-body params)
+	(ob-ipython--execute-sync exec-body params)))))
 
 
 ;; ** Fine tune the output of blocks
@@ -811,6 +865,18 @@ This function is called by `org-babel-execute-src-block'."
 	 (output (cdr (assoc :output ret)))
 	 (value (cdr (assoc :value result)))
 	 (display (cdr (assoc :display result))))
+
+    ;; check for data to show.
+    (save-excursion
+      (when (cdr (assoc :data ret))
+	(pop-to-buffer "*ob-ipython-data*")
+	(read-only-mode -1)
+	(erase-buffer)
+	(insert (cdr (assoc :data ret)))
+	(goto-char (point-min))
+	(ansi-color-apply-on-region (point-min) (point-max))
+	(special-mode)))
+
     (s-concat
      (if ob-ipython-suppress-execution-count
 	 ""
@@ -845,7 +911,9 @@ compatibility with the other formatters."
 (defun ob-ipython-format-text/plain (file-or-nil value)
   "Format VALUE for text/plain mime-types.
 FILE-OR-NIL is not used in this function."
-  (let ((lines (s-lines value)))
+  (let ((lines (s-lines value))
+	(raw (-contains?
+	      (s-split " " (cdr (assoc :results (caddr (org-babel-get-src-block-info t))))) "raw")))
     ;; filter out uninteresting lines.
     (setq lines (-filter (lambda (line)
 			   (not (-any (lambda (regex)
@@ -854,7 +922,10 @@ FILE-OR-NIL is not used in this function."
 			 lines))
     (when lines
       ;; Add verbatim start string
-      (setq lines (mapcar (lambda (s) (s-concat ": " s)) lines))
+      (setq lines (mapcar (lambda (s) (s-concat
+				       (if raw "" ": ")
+				       s))
+			  lines))
       (when ob-ipython-show-mime-types
 	(setq lines (append '("# text/plain") lines)))
       (s-join "\n" lines))))
@@ -967,12 +1038,24 @@ way, but I have left it in for compatibility."
 
 
 ;; ** Better exceptions
+
+(defun ob-ipython--extract-data (msgs)
+  "This extracts output from func? or func?? in ipython"
+  (->> msgs
+       (-filter (lambda (msg)
+		  (s-equals? "execute_reply"
+			     (cdr (assoc 'msg_type msg)))))
+       (-mapcat (lambda (msg)
+		  (->> msg (assoc 'content) (assoc 'payload) cadr (assoc 'data) cdadr)))))
+
 ;; I want an option to get exceptions in the buffer
 (defun ob-ipython--eval (service-response)
   (let ((status (ob-ipython--extract-status service-response)))
-    (cond ((string= "ok" status) `((:result . ,(ob-ipython--extract-result service-response))
-                                   (:output . ,(ob-ipython--extract-output service-response))
-                                   (:exec-count . ,(ob-ipython--extract-execution-count service-response))))
+    (cond ((string= "ok" status)
+	   `((:result . ,(ob-ipython--extract-result service-response))
+	     (:output . ,(ob-ipython--extract-output service-response))
+	     (:data . ,(ob-ipython--extract-data service-response))
+	     (:exec-count . ,(ob-ipython--extract-execution-count service-response))))
           ((string= "abort" status) (error "Kernel execution aborted"))
           ((string= "error" status)
 	   (if ob-ipython-exception-results
@@ -1024,6 +1107,13 @@ Note, this does not work if you run the block async."
 (defun ob-ipython-inspect (buffer pos)
   "Ask a kernel for documentation on the thing at POS in BUFFER."
   (interactive (list (current-buffer) (point)))
+  ;; It is probably helpful to be at the end of a symbol, otherwise you may get
+  ;; help on something else.
+  (save-excursion
+    (when (not (looking-back "\s_\b" (line-beginning-position)))
+      (forward-symbol 1)
+      (setq pos (point))))
+
   (let ((return (org-in-src-block-p))
 	(inspect-buffer))
     (when return
@@ -1041,6 +1131,7 @@ Note, this does not work if you run the block async."
     (when inspect-buffer
       (pop-to-buffer inspect-buffer)
       (goto-char (point-min)))))
+
 
 
 ;; * eldoc integration
