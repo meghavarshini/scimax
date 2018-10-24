@@ -412,7 +412,18 @@ fontification, as long as `org-src-fontify-natively' is non-nil."
 	      (cond
 	       ((and lang (not (string= lang "")) org-src-fontify-natively)
 		(org-src-font-lock-fontify-block lang block-start block-end)
-		(add-text-properties beg1 block-end (list 'src-block t 'lang (substring-no-properties lang))))
+		(add-text-properties beg1 block-end (list
+						     'src-block-begin beg1
+						     ;; the end is at the
+						     ;; beginning of the
+						     ;; #+END_SRC line, and I
+						     ;; want it to be at the end
+						     ;; of the last line in the
+						     ;; block, so I subtract one
+						     ;; here.
+						     'src-block-end (- block-end 1)
+						     'src-block t
+						     'lang (substring-no-properties lang))))
 	       (quoting
 		(add-text-properties beg1 (min (point-max) (1+ end1))
 				     (let ((face-name (intern (format "org-block-%s" lang))))
@@ -498,7 +509,21 @@ fontification, as long as `org-src-fontify-natively' is non-nil."
 	("" "float" nil)
 	("" "wrapfig" nil)
 	("" "rotating" nil)
+<<<<<<< HEAD
 	("" "natbib" nil)
+=======
+	("normalem" "ulem" t)
+	("" "amsmath" t)
+	("" "textcomp" t)
+	("" "marvosym" t)
+	("" "wasysym" t)
+	("" "amssymb" t)
+	("" "amsmath" t)
+	("theorems, skins" "tcolorbox" t)
+	("version=3" "mhchem" t)
+	("numbers,super,sort&compress" "natbib" nil)
+	("" "natmove" nil)
+>>>>>>> 9409c06d816b7c677a4b07b80b76a54d65014257
 	("" "url" nil)
 	("" "minted" nil)
 	("" "underscore" nil)
